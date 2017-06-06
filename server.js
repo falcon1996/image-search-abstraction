@@ -1,25 +1,14 @@
 var express = require('express');
-var mongoose = require('mongoose');
-var Schema = mongoose.Schema;
 var request = require('request');
-var Bing = require('node-bing-api')({ accKey: "" });
+var Bing = require('node-bing-api')({ accKey: "" });        //Add Acc Key Here!
 
 var mongo = require('mongodb').MongoClient;
 
 var app = express();
 app.use(express.static(__dirname + '/public'));
 
-
-var historySchema = new Schema({
-    term: String,
-    when: String
-});
-
-var History = mongoose.model('History', historySchema);
-
-
 var murl = 'mongodb://localhost:27017/url-shortner';
-mongoose.connect(murl);
+
 
 
 app.get('/', function(req, res){
@@ -30,37 +19,36 @@ app.get('/', function(req, res){
 app.get('/search', function(req, res) {
     
     var query = req.query.q;
-    var offset = req.query.offset;          //for https://img-search-api-bq.herokuapp.com/api/search?q=cats&offset=10
+    var offset = req.query.offset;          
     
-    
-    var db = mongoose.connection;
-    db.on('error', console.error.bind(console, 'connection error:'));
-    db.once('open', function() {
+    mongo.connect(murl,function(err,db){
         
+        if(err) throw err;
         
+        var collection = db.collection('history');
         
-        var history = History({
+        var doc = {
+            term: query,
+            when: new Date().toString(),
+            flag:1
+        };
+        
+        collection.insert(doc, function(err, data){
             
-            "term": query,
-            "when": new Date().toLocaleString()
-        });
-        
-        
-        history.save(function (err){
+            if(err) throw err;
             
-            if (err) throw err;
-            
-            console.log('Working!');
+            console.log('data inserted!!')
+            db.close();
         });
         
     });
-
     
+
     
     Bing.images(query,{
         
         top : offset,
-        skip : 0               // max can be 10
+        skip : 0                    // max can be 10
     }, function(err, resp, body){
         
         res.end(JSON.stringify(body));
@@ -70,18 +58,22 @@ app.get('/search', function(req, res) {
 });
 
 
-app.get('/latest', function(req, res){
+app.get('/latest/imagesearch', function(req, res){
     
-    
-    var db = mongoose.connection;
-    db.on('error', console.error.bind(console, 'connection error:'));
-    db.once('open', function(){
+    mongo.connect(murl, function(err,db){
         
-        History.find({},function(err, myhistory){
+        if(err) throw err;
+        
+        var collection = db.collection('history');
+        
+        collection.find({flag : 1}).toArray(function(err,documents){
             
-            if (err)  throw(err);
+            if(err) throw err;
             
-            res.end(myhistory);
+            db.close();
+            console.log(documents)
+            res.send(JSON.stringify(documents))
+            
         });
     });
     
